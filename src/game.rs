@@ -1,22 +1,29 @@
 use bevy::prelude::*;
 
 use crate::state::GameState;
-
 pub struct BoardPlugin;
 
 impl Plugin for BoardPlugin{
     fn build(&self, app:&mut App){
         app
-            .init_resource::<BoardState>()
             .init_state::<InGame>()
-            .add_systems(OnEnter(InGame::Playing), board_menu.run_if(in_state(GameState::InGame)))
+            .init_resource::<BoardState>()
+            .add_systems(OnEnter(GameState::InGame), 
+                board_menu
+                .run_if(in_state(InGame::Playing))
+            )
+            .add_systems(OnEnter(InGame::Playing), 
+                board_menu
+                .run_if(in_state(GameState::InGame))
+            )
             .add_systems(
                 Update,
-                (
-                    hover_cell.run_if(in_state(InGame::Playing)),
-                )
-                .run_if(in_state(GameState::InGame)), 
-            );
+                hover_cell
+                .run_if(in_state(GameState::InGame))
+                .run_if(in_state(InGame::Playing)), 
+            )
+            .add_systems(OnExit(InGame::GameOver), cleanup_board)
+            .add_systems(OnExit(GameState::InGame), cleanup_board);
     }
 }
 
@@ -40,7 +47,6 @@ enum Player{
 pub enum InGame {
     #[default]
     Playing,
-    Paused,
     GameOver,
 }
 
@@ -66,6 +72,7 @@ struct Board;
 
 fn board_menu(mut commands: Commands){
     commands.spawn_scene(build_board_scene());
+    println!("Board Initialized");
 }
 
 fn grid_cell(num: u8) -> impl Scene{
@@ -85,6 +92,7 @@ fn grid_cell(num: u8) -> impl Scene{
             TextFont {
                 font_size: FontSize::Px(50.0)
             }
+            TextColor(Color::srgb(1.0, 1.0, 1.0))
         ]
     }
 }
@@ -143,6 +151,13 @@ fn build_board_scene() -> impl Scene {
                 ]
             ]
             Children [
+                Node{
+                    flex_direction: FlexDirection::Row,
+                    column_gap: px(5.0),
+                }
+
+                Children [
+                (
                 Reset
                 Button
                 on(reset_button)
@@ -161,10 +176,32 @@ fn build_board_scene() -> impl Scene {
                         font_size: FontSize::Px(30.0)
                     }
                 ]
+               ),
+               (
+                 Button
+                 on(main_menu)
+                 BackgroundColor(Color::srgb(0.0, 0.0, 0.8))
+                 Node{
+                     display: Display::Flex,
+                     justify_content: JustifyContent::Center,
+                     align_items: AlignItems::Center,
+                     border_radius: BorderRadius::all(px(10.0))
+                     width: px(150),
+                     height: px(50),
+                 }
+                 Children [
+                     Text::new("Main Menu")
+                     TextFont {
+                         font_size: FontSize::Px(25.0),
+                     }
+                  ]
+                )
+              ]
             ]
         ]
     }
 }
+
 
 fn hover_cell(
     mut interaction_query: Query<
@@ -172,7 +209,7 @@ fn hover_cell(
         (Changed<Interaction>, With<Cell>) 
     >,
     mut text_query: Query<&mut Text>,
-    mut changetext_query : Query<&Children, With<Changetext>>,
+    changetext_query : Query<&Children, With<Changetext>>,
     mut board_state: ResMut<BoardState>,
     mut ingame_state : ResMut<NextState<InGame>>
 ) {
@@ -232,7 +269,7 @@ fn hover_cell(
                         board_state.winner = Some(Player::X);
                     }
 
-                    let mut text_value = String::from("");
+                    let mut text_value:String;
                     
                     if let Some(win) = board_state.winner{
                         ingame_state.set(InGame::GameOver);
@@ -255,8 +292,8 @@ fn hover_cell(
 
                     for children in changetext_query{
                         if let Some(&text_entity) = children.first(){
-                            if let Ok(mut text) = text_query.get_mut(text_entity){
-                                    text.0 = text_value.clone();
+                            if let Ok(mut text_change_query) = text_query.get_mut(text_entity){
+                                    text_change_query.0 = text_value.clone();
                             }
                         }
                     }
@@ -287,30 +324,24 @@ fn reset_button(
     _click: On<Pointer<Click>>,
     mut board_state: ResMut<BoardState>,
     mut ingame_state: ResMut<NextState<InGame>>,
-    mut text_query: Query<&mut Text>,
-    mut query: Query<(&Children, &mut BackgroundColor), With<Cell> >,
-    changetext_query: Query<&Children, With<Changetext>>,
-    ){
-    board_state.cells = [None; 9];
-    board_state.cur_player = Player::X;
-    board_state.winner = None;
-
-    for (children, mut color) in query.iter_mut() {
-       if let Some(&text_entity) = children.first(){
-           if let Ok(mut text) = text_query.get_mut(text_entity){
-               text.0 = "".to_string();
-           }
-       }
-       *color = Color::srgb(0.0, 0.0, 0.0).into();
-    }
-
-    for children in &changetext_query {
-            if let Some(&text_entity) = children.first() {
-                if let Ok(mut text) = text_query.get_mut(text_entity) {
-                    text.0 = "Player X turn".to_string();
-                }
-            }
-        }
+){
+    *board_state = BoardState::default();
     ingame_state.set(InGame::Playing);
 }
 
+fn main_menu(
+    _click: On<Pointer<Click>>,
+    mut board_state: ResMut<BoardState>,
+    mut ingame_state: ResMut<NextState<InGame>>,
+    mut gamestate: ResMut<NextState<GameState>>,
+){
+    *board_state = BoardState::default();
+    ingame_state.set(InGame::Playing);
+    gamestate.set(GameState::MainMenu);
+}
+
+fn cleanup_board(mut commands: Commands, query: Query<Entity, With<Board>>) {
+    for entity in &query {
+        commands.entity(entity).despawn();
+    }
+}

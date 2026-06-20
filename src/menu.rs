@@ -6,8 +6,8 @@ impl Plugin for MenuPlugin{
     fn build(&self, app:&mut App){
         app
             .add_systems(OnEnter(GameState::MainMenu), setup_menu)
-            //.add_systems(Update, button_system)
-            .add_systems(OnExit(GameState::InGame), cleanup);
+            .add_systems(Update, button_system.run_if(in_state(GameState::MainMenu)))
+            .add_systems(OnExit(GameState::MainMenu), cleanup);
     }
 }
 #[derive(Component, Default, Clone)]
@@ -81,38 +81,39 @@ fn setup_menu(mut commands: Commands){
 }
 
 fn button_system(
-    mut interaction_query: Query<
-        (
-            &Interaction,
-            &mut BackgroundColor,
-            Option<&PlayButton>,
-            Option<&QuitButton>,
-        ),
-        Changed<Interaction>,
-    >,
-    mut state: ResMut<NextState<GameState>>,
-) {
-    for (interaction, mut color, play_btn, quit_btn) in &mut interaction_query {
-        match *interaction {
-            Interaction::Pressed => {
-                if play_btn.is_some() {
-                    *color = Color::srgb(0.0, 1.0, 0.0).into(); 
-                    state.set(GameState::InGame);
-                } else if quit_btn.is_some() {
-                    *color = Color::srgb(1.0, 0.0, 0.0).into();
-                }
-            }
-            Interaction::Hovered => {
-                *color = Color::srgb(0.4, 0.4, 0.4).into();
-            }
-            Interaction::None => {
-                *color = Color::srgb(0.15, 0.15, 0.15).into();
-            }
-        }
-    }
-}
+     mut interaction_query: Query<
+         (
+             &Interaction,
+             &mut BackgroundColor,
+             Option<&PlayButton>,
+             Option<&QuitButton>,
+         ),
+         Changed<Interaction>,
+     >,
+     mut state: ResMut<NextState<GameState>>,
+ ) {
+     for (interaction, mut color, play_btn, quit_btn) in &mut interaction_query {
+         match *interaction {
+             Interaction::Pressed => {
+                 if play_btn.is_some() {
+                     *color = Color::srgb(0.0, 1.0, 0.0).into(); 
+                     state.set(GameState::InGame);
+                 } else if quit_btn.is_some() {
+                     *color = Color::srgb(1.0, 0.0, 0.0).into();
+                 }
+             }
+             Interaction::Hovered => {
+                 *color = Color::srgb(0.4, 0.4, 0.4).into();
+             }
+             Interaction::None => {
+                 *color = Color::srgb(0.15, 0.15, 0.15).into();
+             }
+         }
+     }
+ }
 
 fn play_click(_click: On<Pointer<Click>>, mut state: ResMut<NextState<GameState>>){
+    state.set(GameState::InGame);
     state.set(GameState::InGame);
 }
 
